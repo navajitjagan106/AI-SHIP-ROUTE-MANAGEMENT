@@ -1,0 +1,58 @@
+.map-container {
+    text-align: center;
+    padding: 20px;
+    background-color: white;
+    transition: background-color 0.5s ease;
+  }
+  
+  .dark-mode {
+    background-color: #121212;
+    color: white;
+  }
+  
+  .map {
+    height: 500px;
+    width: 80%;
+    margin: auto;
+    border-radius: 10px;
+  }
+  
+  .switch {
+    display: flex;
+    align-items: center;
+    margin: 10px;
+  }
+  
+  .switch input {
+    display: none;
+  }
+  
+  .switch .slider {
+    width: 40px;
+    height: 20px;
+    background: #ccc;
+    border-radius: 10px;
+    position: relative;
+    cursor: pointer;
+  }
+  
+  .switch input:checked + .slider {
+    background: #4caf50;
+  }
+  
+  .switch .slider:before {
+    content: "";
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    left: 2px;
+    top: 2px;
+    background: white;
+    border-radius: 50%;
+    transition: 0.3s;
+  }
+  
+  .switch input:checked + .slider:before {
+    transform: translateX(20px);
+  }
+  
