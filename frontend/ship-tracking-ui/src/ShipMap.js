@@ -10,30 +10,29 @@ const shipIcon = new L.Icon({
 });
 
 const ShipMap = () => {
-  const [shipLocation, setShipLocation] = useState([20.0, 70.0]); // Default location
+  const [ships, setShips] = useState([]); // List of ships
+  const [selectedShip, setSelectedShip] = useState(null); // Selected ship details
   const [darkMode, setDarkMode] = useState(false);
 
-  // Fetch ship location from backend API
   useEffect(() => {
-    const fetchShipData = async () => {
+    const fetchShips = async () => {
       try {
-        const response = await fetch("http://127.0.0.1:8000/ship/219019621");
+        const response = await fetch("http://127.0.0.1:8000/ship-traffic"); // ✅ Fixed endpoint
         const data = await response.json();
-        console.log("Ship Data:", data); // Debugging
+        console.log("Fetched Ships:", data);
 
-        // Ensure valid latitude and longitude before setting state
-        if (data.latitude !== undefined && data.longitude !== undefined) {
-          setShipLocation([data.latitude, data.longitude]);
+        if (data.ships && Array.isArray(data.ships)) {
+          setShips(data.ships);
         } else {
-          console.error("Invalid ship location data:", data);
+          console.error("Invalid ship data format:", data);
         }
       } catch (error) {
         console.error("Error fetching ship data:", error);
       }
     };
 
-    fetchShipData();
-    const interval = setInterval(fetchShipData, 5000); // Fetch every 5 sec
+    fetchShips();
+    const interval = setInterval(fetchShips, 5000); // Fetch every 5 sec
 
     return () => clearInterval(interval);
   }, []);
@@ -47,7 +46,18 @@ const ShipMap = () => {
         Dark Mode
       </label>
 
-      <MapContainer center={shipLocation} zoom={5} className="map">
+      <div className="ship-list">
+        <h2>Ships List</h2>
+        <ul>
+          {ships.map((ship) => (
+            <li key={ship.mmsi} onClick={() => setSelectedShip(ship)}>
+              {ship.name || "Unknown Ship"} (MMSI: {ship.mmsi})
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <MapContainer center={[20.0, 70.0]} zoom={5} className="map">
         <TileLayer
           url={
             darkMode
@@ -55,14 +65,46 @@ const ShipMap = () => {
               : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           }
         />
-        {shipLocation[0] && shipLocation[1] ? ( // Prevent invalid LatLng error
-          <Marker position={shipLocation} icon={shipIcon}>
-            <Popup>Ship is currently at {shipLocation[0]}, {shipLocation[1]}</Popup>
-          </Marker>
-        ) : (
-          <p>Loading ship data...</p>
+
+        {ships.map((ship) =>
+          ship.latitude !== undefined && ship.longitude !== undefined ? (
+            <Marker
+              key={ship.mmsi}
+              position={[ship.latitude, ship.longitude]}
+              icon={shipIcon}
+              eventHandlers={{
+                click: () => setSelectedShip(ship),
+              }}
+            >
+              <Popup>
+                <strong>{ship.name || "Unknown Ship"}</strong>
+                <br />
+                MMSI: {ship.mmsi}
+                <br />
+                Speed: {ship.sog || "N/A"} knots
+                <br />
+                Course: {ship.cog || "N/A"}°
+                <br />
+                Status: {ship.navigationalstatus || "Unknown"}
+              </Popup>
+            </Marker>
+          ) : null
         )}
       </MapContainer>
+
+      {selectedShip && (
+        <div className="ship-details">
+          <h2>Ship Details</h2>
+          <p><strong>Name:</strong> {selectedShip.name || "Unknown"}</p>
+          <p><strong>MMSI:</strong> {selectedShip.mmsi}</p>
+          <p><strong>Latitude:</strong> {selectedShip.latitude}</p>
+          <p><strong>Longitude:</strong> {selectedShip.longitude}</p>
+          <p><strong>Speed:</strong> {selectedShip.sog || "N/A"} knots</p>
+          <p><strong>Course:</strong> {selectedShip.cog || "N/A"}°</p>
+          <p><strong>Status:</strong> {selectedShip.navigationalstatus || "Unknown"}</p>
+          <button onClick={() => setSelectedShip(null)}>Close</button>
+        </div>
+      )}
     </div>
   );
 };

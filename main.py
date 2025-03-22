@@ -1,69 +1,102 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-import requests
-from pymongo import MongoClient
+import pandas as pd
+import random
+import time
+import threading
 
 app = FastAPI()
 
-# Enable CORS
+# ✅ Enable CORS for frontend connection
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],  # React frontend
     allow_credentials=True,
-    allow_methods=["*"],  # Allow all HTTP methods
-    allow_headers=["*"],  # Allow all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-# MongoDB Connection
-client = MongoClient("mongodb://localhost:27017/")
-db = client.ship_routing
-routes_collection = db.routes
+# ✅ Load AIS Data
+ais_file = "ais_data.csv"
+ais_data = pd.read_csv(ais_file)
 
-NOAA_API_URL = "https://api.weather.gov/gridpoints/MPX/116,72/forecast"
+# ✅ Convert MMSI to string
+ais_data["mmsi"] = ais_data["mmsi"].astype(str)
+ais_data.fillna("Unknown", inplace=True)  # Fill NaN values
 
-@app.get("/")
-def home():
-    return {"message": "Ship Route Optimization API is running"}
+# ✅ Store live ship positions globally
+ship_positions = {}
 
-# Other routes remain unchanged...
-
-
-# Fetch Weather Data
-@app.get("/weather")
-def get_weather():
-    response = requests.get(NOAA_API_URL)
-    if response.status_code == 200:
-        return response.json()
-    return {"error": "Failed to fetch weather data"}
-
-# Fetch Ship Traffic Data (Placeholder for AIS API)
-@app.get("/ship/{ship_id}")
-def get_ship(ship_id: int):
-    """
-    Fetches ship data from an AIS API (simulated here).
-    Replace with actual AIS API integration if available.
-    """
-    # Simulating ship data (replace with actual API call)
-    ship_data = {
-        "id": ship_id,
-        "latitude": 37.7749,  # Example: San Francisco
-        "longitude": -122.4194,
-        "status": "moving"
+# ✅ Function to generate initial random coordinates
+def generate_initial_coordinates():
+    return {
+        "latitude": round(random.uniform(-80, 80), 6),
+        "longitude": round(random.uniform(-180, 180), 6)
     }
 
-    # Ensure valid data is returned
-    if "latitude" not in ship_data or "longitude" not in ship_data:
-        raise HTTPException(status_code=404, detail="Ship location not found")
+# ✅ Initialize ships with random coordinates
+for mmsi in ais_data["mmsi"]:
+    ship_positions[mmsi] = generate_initial_coordinates()
+
+# ✅ Function to update ship positions dynamically
+def update_ship_positions():
+    while True:
+        for mmsi in ship_positions:
+            ship_data = ais_data[ais_data["mmsi"] == mmsi]
+
+            if ship_data.empty:
+                continue
+
+            sog = pd.to_numeric(ship_data["sog"].values[0], errors="coerce")
+            cog = pd.to_numeric(ship_data["cog"].values[0], errors="coerce")
+
+            # Ensure valid values
+            sog = sog if not pd.isna(sog) else 0
+            cog = cog if not pd.isna(cog) else 0
+
+            # ✅ Update coordinates based on speed and course
+            lat_change = (sog * 0.0001) * random.uniform(-1, 1)
+            lon_change = (sog * 0.0001) * random.uniform(-1, 1)
+
+            ship_positions[mmsi]["latitude"] += lat_change
+            ship_positions[mmsi]["longitude"] += lon_change
+
+        time.sleep(5)  # Update every 5 seconds
+
+# ✅ Start background thread for live updates
+threading.Thread(target=update_ship_positions, daemon=True).start()
+
+# ✅ Route to get all ships' data
+@app.get("/ship-traffic")
+def get_ship_traffic():
+    ships = []
+    for mmsi, pos in ship_positions.items():
+        ship_info = ais_data[ais_data["mmsi"] == mmsi]
+        if not ship_info.empty:
+            ship = ship_info.iloc[0].to_dict()
+            ship["latitude"] = pos["latitude"]
+            ship["longitude"] = pos["longitude"]
+            ships.append(ship)
+    
+    return {"ships": ships}
+
+# ✅ Route to get a specific ship's location by MMSI
+@app.get("/ship/{mmsi}")
+def get_ship_by_mmsi(mmsi: str):
+    if mmsi not in ship_positions:
+        raise HTTPException(status_code=404, detail="Ship not found")
+
+    ship_info = ais_data[ais_data["mmsi"] == mmsi]
+    if ship_info.empty:
+        raise HTTPException(status_code=404, detail="Ship data not found")
+
+    ship_data = ship_info.iloc[0].to_dict()
+    ship_data["latitude"] = ship_positions[mmsi]["latitude"]
+    ship_data["longitude"] = ship_positions[mmsi]["longitude"]
 
     return ship_data
 
-# Store Optimized Route
-@app.post("/save-route")
-def save_route(route_data: dict):
-    routes_collection.insert_one(route_data)
-    return {"message": "Route saved successfully"}
-
-# Get All Saved Routes
-@app.get("/routes")
-def get_routes():
-    return list(routes_collection.find({}, {"_id": 0}))
+# ✅ Home route
+@app.get("/")
+def home():
+    return {"message": "AIS Ship Tracking API is running with real-time movement"}

@@ -7,7 +7,7 @@ import threading
 
 app = FastAPI()
 
-# Enable CORS
+# ✅ Enable CORS for frontend connection
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],  # React frontend
@@ -15,31 +15,30 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-# Load AIS data
+
+# ✅ Load AIS Data
 ais_file = "ais_data.csv"
 ais_data = pd.read_csv(ais_file)
 
-# Convert MMSI to string
+# ✅ Convert MMSI to string
 ais_data["mmsi"] = ais_data["mmsi"].astype(str)
+ais_data.fillna("Unknown", inplace=True)  # Fill NaN values
 
-# Fill NaN values with defaults
-ais_data = ais_data.fillna("Unknown")
-
-# Store ship positions globally
+# ✅ Store live ship positions globally
 ship_positions = {}
 
-# Function to generate initial random coordinates
+# ✅ Function to generate initial random coordinates
 def generate_initial_coordinates():
     return {
         "latitude": round(random.uniform(-80, 80), 6),
         "longitude": round(random.uniform(-180, 180), 6)
     }
 
-# Initialize all ships with random coordinates
+# ✅ Initialize ships with random coordinates
 for mmsi in ais_data["mmsi"]:
     ship_positions[mmsi] = generate_initial_coordinates()
 
-# Function to update all ships' positions continuously
+# ✅ Function to update ship positions dynamically
 def update_ship_positions():
     while True:
         for mmsi in ship_positions:
@@ -51,11 +50,11 @@ def update_ship_positions():
             sog = pd.to_numeric(ship_data["sog"].values[0], errors="coerce")
             cog = pd.to_numeric(ship_data["cog"].values[0], errors="coerce")
 
-            # Ensure valid numbers (replace NaN with 0)
+            # Ensure valid values
             sog = sog if not pd.isna(sog) else 0
             cog = cog if not pd.isna(cog) else 0
 
-            # Update coordinates based on speed and course
+            # ✅ Update coordinates based on speed and course
             lat_change = (sog * 0.0001) * random.uniform(-1, 1)
             lon_change = (sog * 0.0001) * random.uniform(-1, 1)
 
@@ -64,37 +63,10 @@ def update_ship_positions():
 
         time.sleep(5)  # Update every 5 seconds
 
-# Start background thread for continuous movement
+# ✅ Start background thread for live updates
 threading.Thread(target=update_ship_positions, daemon=True).start()
 
-# Function to update a single ship's position dynamically
-def update_ship_position(mmsi):
-    """Ensure ship moves every time it is requested."""
-    if mmsi not in ship_positions:
-        ship_positions[mmsi] = generate_initial_coordinates()
-
-    sog = pd.to_numeric(ais_data.loc[ais_data["mmsi"] == mmsi, "sog"].values[0], errors="coerce")
-    cog = pd.to_numeric(ais_data.loc[ais_data["mmsi"] == mmsi, "cog"].values[0], errors="coerce")
-
-    # Ensure valid numbers
-    sog = sog if not pd.isna(sog) else 0
-    cog = cog if not pd.isna(cog) else 0
-
-    # Simulate movement using speed (`sog`) and direction (`cog`)
-    lat_change = (sog * 0.0001) * random.uniform(-1, 1)
-    lon_change = (sog * 0.0001) * random.uniform(-1, 1)
-
-    # Update stored position
-    ship_positions[mmsi]["latitude"] += lat_change
-    ship_positions[mmsi]["longitude"] += lon_change
-
-    return ship_positions[mmsi]
-
-@app.get("/")
-def home():
-    return {"message": "AIS Ship Tracking API is running with real-time movement & location filters"}
-
-# Fetch all ship data with filters, including location
+# ✅ Route to get all ships' data with filters
 @app.get("/ship-traffic")
 def get_ship_traffic(
     ship_type: str = Query(None, description="Filter by ship type (e.g., Cargo, Fishing)"),
@@ -143,21 +115,23 @@ def get_ship_traffic(
 
     return {"ships": ships}
 
-# Fetch ship by MMSI (real-time lat/lon movement per request)
+# ✅ Route to get a specific ship's location by MMSI
 @app.get("/ship/{mmsi}")
 def get_ship_by_mmsi(mmsi: str):
-    ship_info = ais_data[ais_data["mmsi"] == mmsi]
-
-    if ship_info.empty:
+    if mmsi not in ship_positions:
         raise HTTPException(status_code=404, detail="Ship not found")
 
-    ship_data = ship_info.to_dict(orient="records")[0]
+    ship_info = ais_data[ais_data["mmsi"] == mmsi]
+    if ship_info.empty:
+        raise HTTPException(status_code=404, detail="Ship data not found")
 
-    # Update ship's position dynamically every API request
-    new_position = update_ship_position(mmsi)
-
-    if new_position:
-        ship_data["latitude"] = new_position["latitude"]
-        ship_data["longitude"] = new_position["longitude"]
+    ship_data = ship_info.iloc[0].to_dict()
+    ship_data["latitude"] = ship_positions[mmsi]["latitude"]
+    ship_data["longitude"] = ship_positions[mmsi]["longitude"]
 
     return ship_data
+
+# ✅ Home route
+@app.get("/")
+def home():
+    return {"message": "AIS Ship Tracking API is running with real-time movement & location filters"}
