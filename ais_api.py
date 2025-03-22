@@ -2,32 +2,39 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
 import random
-import time
-import threading
+import asyncio
+import os
 
 app = FastAPI()
 
-# ✅ Enable CORS for frontend connection
+# ✅ Enable CORS for frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # React frontend
+    allow_origins=["http://localhost:3000"],  # Allow frontend access
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ✅ Load AIS Data
+# ✅ Load AIS Data (with error handling)
 ais_file = "ais_data.csv"
+
+if not os.path.exists(ais_file):
+    raise FileNotFoundError(f"Error: File '{ais_file}' not found!")
+
 ais_data = pd.read_csv(ais_file)
 
-# ✅ Convert MMSI to string
-ais_data["mmsi"] = ais_data["mmsi"].astype(str)
-ais_data.fillna("Unknown", inplace=True)  # Fill NaN values
+# ✅ Fix missing data
+for col in ais_data.select_dtypes(include=["object"]).columns:
+    ais_data[col].fillna("Unknown", inplace=True)
+
+for col in ais_data.select_dtypes(include=["number"]).columns:
+    ais_data[col].fillna(0, inplace=True)
 
 # ✅ Store live ship positions globally
 ship_positions = {}
 
-# ✅ Function to generate initial random coordinates
+# ✅ Generate random coordinates for ships
 def generate_initial_coordinates():
     return {
         "latitude": round(random.uniform(-80, 80), 6),
@@ -39,79 +46,50 @@ for mmsi in ais_data["mmsi"]:
     ship_positions[mmsi] = generate_initial_coordinates()
 
 # ✅ Function to update ship positions dynamically
-def update_ship_positions():
+async def update_ship_positions():
     while True:
         for mmsi in ship_positions:
-            ship_data = ais_data[ais_data["mmsi"] == mmsi]
-
-            if ship_data.empty:
+            if mmsi not in ais_data["mmsi"].values:
                 continue
 
+            ship_data = ais_data[ais_data["mmsi"] == mmsi]
             sog = pd.to_numeric(ship_data["sog"].values[0], errors="coerce")
             cog = pd.to_numeric(ship_data["cog"].values[0], errors="coerce")
 
-            # Ensure valid values
             sog = sog if not pd.isna(sog) else 0
             cog = cog if not pd.isna(cog) else 0
 
-            # ✅ Update coordinates based on speed and course
+            # ✅ Simulate movement using speed
             lat_change = (sog * 0.0001) * random.uniform(-1, 1)
             lon_change = (sog * 0.0001) * random.uniform(-1, 1)
 
             ship_positions[mmsi]["latitude"] += lat_change
             ship_positions[mmsi]["longitude"] += lon_change
 
-        time.sleep(5)  # Update every 5 seconds
+        await asyncio.sleep(5)  # ✅ Non-blocking sleep
 
-# ✅ Start background thread for live updates
-threading.Thread(target=update_ship_positions, daemon=True).start()
+# ✅ Start background task for updating ship positions
+@app.on_event("startup")
+async def start_background_task():
+    asyncio.create_task(update_ship_positions())
 
-# ✅ Route to get all ships' data with filters
+# ✅ Route to get all ships' data (limited to 10 ships)
 @app.get("/ship-traffic")
-def get_ship_traffic(
-    ship_type: str = Query(None, description="Filter by ship type (e.g., Cargo, Fishing)"),
-    min_speed: float = Query(0, description="Minimum speed in knots"),
-    max_speed: float = Query(100, description="Maximum speed in knots"),
-    status: str = Query(None, description="Filter by navigational status (e.g., Underway, Moored)"),
-    min_lat: float = Query(None, description="Minimum latitude"),
-    max_lat: float = Query(None, description="Maximum latitude"),
-    min_lon: float = Query(None, description="Minimum longitude"),
-    max_lon: float = Query(None, description="Maximum longitude")
-):
-    filtered_data = ais_data.copy()
+def get_ship_traffic():
+    ships = []
 
-    # Convert "sog" column to numeric and replace "Unknown" with 0
-    filtered_data["sog"] = pd.to_numeric(filtered_data["sog"], errors="coerce").fillna(0)
+    for i, mmsi in enumerate(ship_positions):
+        if i >= 10:  # 🚀 Fetch only 10 ships
+            break
 
-    # Apply ship type filter
-    if ship_type:
-        filtered_data = filtered_data[filtered_data["shiptype"].str.lower() == ship_type.lower()]
+        new_position = ship_positions[mmsi]
+        ship_info = ais_data[ais_data["mmsi"] == mmsi]
 
-    # Apply speed filters
-    filtered_data = filtered_data[(filtered_data["sog"] >= min_speed) & 
-                                  (filtered_data["sog"] <= max_speed)]
-
-    # Apply navigational status filter
-    if status:
-        filtered_data = filtered_data[filtered_data["navigationalstatus"].str.lower() == status.lower()]
-
-    # Convert to dictionary and add live coordinates
-    ships = filtered_data.to_dict(orient="records")
-    for ship in ships:
-        mmsi = ship["mmsi"]
-        if mmsi in ship_positions:
-            ship["latitude"] = ship_positions[mmsi]["latitude"]
-            ship["longitude"] = ship_positions[mmsi]["longitude"]
-
-    # Apply location filters
-    if min_lat is not None:
-        ships = [ship for ship in ships if ship["latitude"] >= min_lat]
-    if max_lat is not None:
-        ships = [ship for ship in ships if ship["latitude"] <= max_lat]
-    if min_lon is not None:
-        ships = [ship for ship in ships if ship["longitude"] >= min_lon]
-    if max_lon is not None:
-        ships = [ship for ship in ships if ship["longitude"] <= max_lon]
+        if not ship_info.empty:
+            ship = ship_info.iloc[0].to_dict()
+            ship["latitude"] = new_position["latitude"]
+            ship["longitude"] = new_position["longitude"]
+            ships.append(ship)
 
     return {"ships": ships}
 
@@ -134,4 +112,4 @@ def get_ship_by_mmsi(mmsi: str):
 # ✅ Home route
 @app.get("/")
 def home():
-    return {"message": "AIS Ship Tracking API is running with real-time movement & location filters"}
+    return {"message": "AIS Ship Tracking API is running with real-time movement"}
