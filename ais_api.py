@@ -1,115 +1,163 @@
-from fastapi import FastAPI, HTTPException, Query
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import APIRouter, HTTPException
 import pandas as pd
 import random
 import asyncio
 import os
+import math
+import json
+import numpy as np
 
-app = FastAPI()
+router = APIRouter()
 
-# ✅ Enable CORS for frontend
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Allow frontend access
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# ✅ Load AIS Data from `trip9.csv`
+csv_file = "trip9.csv"
 
-# ✅ Load AIS Data (with error handling)
-ais_file = "ais_data.csv"
+if not os.path.exists(csv_file):
+    raise FileNotFoundError(f"🚨 Error: CSV file '{csv_file}' not found!")
 
-if not os.path.exists(ais_file):
-    raise FileNotFoundError(f"Error: File '{ais_file}' not found!")
+ais_data = pd.read_csv(csv_file)
 
-ais_data = pd.read_csv(ais_file)
+# ✅ Standardize Column Names
+column_mapping = {
+    "ID": "MMSI",
+    "Latitude": "lat",
+    "Longitude": "lon",
+    "Speed": "sog",
+    "Course": "cog",
+    "ShipStatus": "status"
+}
+ais_data.rename(columns={k: v for k, v in column_mapping.items() if k in ais_data.columns}, inplace=True)
 
-# ✅ Fix missing data
-for col in ais_data.select_dtypes(include=["object"]).columns:
-    ais_data[col].fillna("Unknown", inplace=True)
+# ✅ Ensure Required Columns Exist
+required_columns = {"MMSI", "lat", "lon", "sog", "cog", "status"}
+missing_columns = required_columns - set(ais_data.columns)
 
-for col in ais_data.select_dtypes(include=["number"]).columns:
-    ais_data[col].fillna(0, inplace=True)
+if missing_columns:
+    raise ValueError(f"🚨 CSV file is missing required columns: {missing_columns}")
 
-# ✅ Store live ship positions globally
+# ✅ Fix NaN Values & Invalid Data
+ais_data.replace([np.nan, np.inf, -np.inf], 0, inplace=True)
+ais_data.fillna({
+    "sog": 0.0,
+    "cog": random.uniform(0, 360),  # Assign a random course if missing
+    "status": "Unknown",
+    "lat": 0.0,
+    "lon": 0.0
+}, inplace=True)
+
+# Convert all numeric columns to `float`
+for col in ["sog", "cog", "lat", "lon"]:
+    ais_data[col] = pd.to_numeric(ais_data[col], errors="coerce").fillna(0.0)
+
+# ✅ Ensure 10 unique ships are selected
+num_ships = min(10, len(ais_data["MMSI"].unique()))
+selected_ships = ais_data["MMSI"].drop_duplicates().sample(n=num_ships, random_state=42).tolist()
+
+# ✅ Store 10 ship positions globally
 ship_positions = {}
 
-# ✅ Generate random coordinates for ships
-def generate_initial_coordinates():
-    return {
-        "latitude": round(random.uniform(-80, 80), 6),
-        "longitude": round(random.uniform(-180, 180), 6)
+# ✅ Function to check if a ship is in water
+def is_ocean(lat, lon):
+    """Ensures ships stay on water and not land."""
+    if abs(lat) > 60:  # Arctic/Antarctic (Land)
+        return False
+    if (-20 < lat < 30 and -20 < lon < 50):  # Africa (Land)
+        return False
+    if (30 < lat < 60 and -130 < lon < -60):  # USA/Canada (Land)
+        return False
+    return True
+
+# ✅ Initialize 10 Ships at Dataset Positions
+for _, row in ais_data[ais_data["MMSI"].isin(selected_ships)].iterrows():
+    lat, lon = row["lat"], row["lon"]
+
+    # Ensure ship starts in water
+    if not is_ocean(lat, lon):
+        lat += 0.5
+        lon += 0.5
+
+    # Assign a random speed if missing
+    sog = row["sog"]
+    if sog == 0:
+        sog = random.uniform(5, 15)
+
+    ship_positions[row["MMSI"]] = {
+        "latitude": lat,
+        "longitude": lon,
+        "sog": sog,
+        "cog": row["cog"],
+        "status": row["status"]
     }
 
-# ✅ Initialize ships with random coordinates
-for mmsi in ais_data["mmsi"]:
-    ship_positions[mmsi] = generate_initial_coordinates()
+# ✅ Function to Move Ships
+def move_ship(mmsi):
+    """Moves a ship based on its SOG (speed) and COG (direction)."""
+    ship = ship_positions[mmsi]
+    old_lat, old_lon = ship["latitude"], ship["longitude"]
+    
+    sog = ship["sog"]
+    cog = ship["cog"]
 
-# ✅ Function to update ship positions dynamically
+    if sog == 0:
+        return  # Do not move if speed is 0
+
+    distance = sog * 0.0002  # Adjust speed for visualization
+    angle = math.radians(cog)
+
+    lat_change = distance * math.cos(angle)
+    lon_change = distance * math.sin(angle)
+
+    new_lat = old_lat + lat_change
+    new_lon = old_lon + lon_change
+
+    # Ensure ship stays in the ocean
+    if is_ocean(new_lat, new_lon):
+        ship_positions[mmsi]["latitude"] = new_lat
+        ship_positions[mmsi]["longitude"] = new_lon
+    else:
+        ship_positions[mmsi]["cog"] += random.uniform(-10, 10)  # Change direction
+
+    # 🔹 Debugging logs
+    print(f"🚢 Ship {mmsi} moved: {old_lat},{old_lon} ➝ {new_lat},{new_lon}")
+
+# ✅ Background Task: Move Ships
 async def update_ship_positions():
+    """Continuously updates ship positions every 3 seconds."""
     while True:
         for mmsi in ship_positions:
-            if mmsi not in ais_data["mmsi"].values:
-                continue
+            move_ship(mmsi)
+        await asyncio.sleep(3)
 
-            ship_data = ais_data[ais_data["mmsi"] == mmsi]
-            sog = pd.to_numeric(ship_data["sog"].values[0], errors="coerce")
-            cog = pd.to_numeric(ship_data["cog"].values[0], errors="coerce")
-
-            sog = sog if not pd.isna(sog) else 0
-            cog = cog if not pd.isna(cog) else 0
-
-            # ✅ Simulate movement using speed
-            lat_change = (sog * 0.0001) * random.uniform(-1, 1)
-            lon_change = (sog * 0.0001) * random.uniform(-1, 1)
-
-            ship_positions[mmsi]["latitude"] += lat_change
-            ship_positions[mmsi]["longitude"] += lon_change
-
-        await asyncio.sleep(5)  # ✅ Non-blocking sleep
-
-# ✅ Start background task for updating ship positions
-@app.on_event("startup")
-async def start_background_task():
-    asyncio.create_task(update_ship_positions())
-
-# ✅ Route to get all ships' data (limited to 10 ships)
-@app.get("/ship-traffic")
+# ✅ API Endpoint: Get 10 Ships' Positions
+@router.get("/ship-traffic")
 def get_ship_traffic():
+    """Returns real-time positions of 10 ships."""
     ships = []
-
-    for i, mmsi in enumerate(ship_positions):
-        if i >= 10:  # 🚀 Fetch only 10 ships
-            break
-
-        new_position = ship_positions[mmsi]
-        ship_info = ais_data[ais_data["mmsi"] == mmsi]
-
-        if not ship_info.empty:
-            ship = ship_info.iloc[0].to_dict()
-            ship["latitude"] = new_position["latitude"]
-            ship["longitude"] = new_position["longitude"]
-            ships.append(ship)
+    for mmsi, ship in ship_positions.items():
+        ships.append({
+            "MMSI": mmsi,
+            "latitude": float(ship["latitude"]),
+            "longitude": float(ship["longitude"]),
+            "sog": float(ship["sog"]),
+            "cog": float(ship["cog"]),
+            "status": ship["status"]
+        })
 
     return {"ships": ships}
 
-# ✅ Route to get a specific ship's location by MMSI
-@app.get("/ship/{mmsi}")
+# ✅ API Endpoint: Get a Specific Ship's Position
+@router.get("/ship/{mmsi}")
 def get_ship_by_mmsi(mmsi: str):
-    if mmsi not in ship_positions:
+    """Returns real-time position of a specific ship."""
+    if int(mmsi) not in ship_positions:
         raise HTTPException(status_code=404, detail="Ship not found")
 
-    ship_info = ais_data[ais_data["mmsi"] == mmsi]
-    if ship_info.empty:
-        raise HTTPException(status_code=404, detail="Ship data not found")
-
-    ship_data = ship_info.iloc[0].to_dict()
-    ship_data["latitude"] = ship_positions[mmsi]["latitude"]
-    ship_data["longitude"] = ship_positions[mmsi]["longitude"]
-
-    return ship_data
-
-# ✅ Home route
-@app.get("/")
-def home():
-    return {"message": "AIS Ship Tracking API is running with real-time movement"}
+    ship = ship_positions[int(mmsi)]
+    return {
+        "MMSI": mmsi,
+        "latitude": ship["latitude"],
+        "longitude": ship["longitude"],
+        "sog": ship["sog"],
+        "cog": ship["cog"],
+        "status": ship["status"]
+    }
