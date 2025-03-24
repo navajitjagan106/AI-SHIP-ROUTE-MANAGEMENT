@@ -4,6 +4,7 @@ import Routess from './assets/Components/RoutesOptimization';
 import {BrowserRouter,Routes,Route} from "react-router-dom";
 import Dashboard from './assets/Components/Dashboard';
 import Weather from './assets/Components/Weather';
+import Navigation from './assets/Components/Navigation';
 function App() {
   return (
     <BrowserRouter>
@@ -13,6 +14,7 @@ function App() {
         <Route path='/routes' element={<Routess />}></Route>
         <Route path='/dashboard' element={<Dashboard />}></Route>
         <Route path='/weather' element={<Weather />}></Route>
+        <Route path='/navigation' element={<Navigation />}></Route>
       </Routes>
     </BrowserRouter>
   )
