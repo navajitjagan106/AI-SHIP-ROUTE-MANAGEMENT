@@ -2,6 +2,14 @@ import React from 'react';
 import Navbar from './Navbar';
 import { MapContainer, TileLayer, Marker, Popup,ZoomControl } from 'react-leaflet';
 import '../Styles/Dashboard.css'; // Importing the CSS file
+import SP from "../Img/ship.png"
+
+const shipIcon = new L.Icon({
+  iconUrl: SP,
+  iconSize: [40, 40],
+  iconAnchor: [20, 20],
+  popupAnchor: [0, -20],
+});
 
 const Dashboard = () => {
   return (
@@ -12,11 +20,11 @@ const Dashboard = () => {
         {/* Map Panel */}
         <div className="map-panel">
           <h2>Interactive Map</h2>
-          <MapContainer center={[20.5937, 78.9629]} zoom={5} zoomControl={false} className="map-content">
+          <MapContainer center={[12.3456, -45.6789]} zoom={5} zoomControl={false} className="map-content">
             <TileLayer
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
-            <Marker position={[20.5937, 78.9629]}>
+            <Marker position={[12.3456, -45.6789]} icon={shipIcon}>
               <Popup>📍 Default Location (India)</Popup>
             </Marker>
             <ZoomControl position="bottomright" />

@@ -1,7 +1,7 @@
 .map-container {
   position: relative;
   left: 10vw;
-  top:20vh;
+  top:16vh;
   z-index: 5;
   width: 80vw; 
   height: 60vh; 
@@ -15,6 +15,11 @@
   background-color: black;
 }
 
+.map-title{
+  position: relative;
+  top: 12vh;
+  left: 10vw;
+}
 
 .map {
   width: 100%;

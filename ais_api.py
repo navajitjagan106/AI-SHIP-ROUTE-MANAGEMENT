@@ -5,7 +5,6 @@ import random
 import asyncio
 import os
 import math
-import json
 import numpy as np
 
 # ✅ Create FastAPI App
@@ -23,24 +22,29 @@ app.add_middleware(
 router = APIRouter()
 
 # ✅ Load AIS Data from `trip9.csv`
-csv_file = "trip9.csv"
+csv_file = "book1.csv"
 
 if not os.path.exists(csv_file):
     raise FileNotFoundError(f"🚨 Error: CSV file '{csv_file}' not found!")
 
 ais_data = pd.read_csv(csv_file)
 
+# ✅ Column Mapping Based on Your CSV File
 column_mapping = {
     "MMSI": "MMSI",
-    "MeanSOG": "sog",
-    "DepLat": "lat",
-    "DepLon": "lon",
+    "LAT": "lat",
+    "LON": "lon",
+    "SOG": "sog",
+    "COG": "cog",
+    "Status": "status"
 }
 ais_data.rename(columns=column_mapping, inplace=True)
 
-ais_data["cog"] = np.random.uniform(0, 360, len(ais_data))
-ais_data["status"] = "Unknown"
+# ✅ Add Missing Columns
+ais_data["cog"] = ais_data.get("cog", np.random.uniform(0, 360, len(ais_data)))
+ais_data["status"] = ais_data.get("status", "Unknown")
 
+# ✅ Ensure Required Columns Exist
 required_columns = {"MMSI", "lat", "lon", "sog", "cog", "status"}
 missing_columns = required_columns - set(ais_data.columns)
 
@@ -48,7 +52,6 @@ if missing_columns:
     raise ValueError(f"🚨 CSV file is missing required columns: {missing_columns}")
 
 # ✅ Fix NaN Values & Invalid Data
-ais_data.replace([np.nan, np.inf, -np.inf], 0, inplace=True)
 ais_data.fillna({
     "sog": 0.0,
     "cog": random.uniform(0, 360),  # Assign a random course if missing
@@ -61,15 +64,14 @@ ais_data.fillna({
 for col in ["sog", "cog", "lat", "lon"]:
     ais_data[col] = pd.to_numeric(ais_data[col], errors="coerce").fillna(0.0)
 
-# ✅ Ensure 10 unique ships are selected
-num_ships = min(10, len(ais_data["MMSI"].unique()))
+# ✅ Select 10 Unique Ships
+num_ships = min(500, len(ais_data["MMSI"].unique()))
 selected_ships = ais_data["MMSI"].drop_duplicates().sample(n=num_ships, random_state=42).tolist()
 
-print(selected_ships)
 # ✅ Store 10 ship positions globally
 ship_positions = {}
 
-# ✅ Function to check if a ship is in water
+# ✅ Function to Check if a Ship is in Water
 def is_ocean(lat, lon):
     """Ensures ships stay on water and not land."""
     if abs(lat) > 60:  # Arctic/Antarctic (Land)
@@ -101,6 +103,7 @@ for _, row in ais_data[ais_data["MMSI"].isin(selected_ships)].iterrows():
         "cog": row["cog"],
         "status": row["status"]
     }
+
 # ✅ Function to Move Ships
 def move_ship(mmsi):
     """Moves a ship based on its SOG (speed) and COG (direction)."""
@@ -128,9 +131,6 @@ def move_ship(mmsi):
         ship_positions[mmsi]["longitude"] = new_lon
     else:
         ship_positions[mmsi]["cog"] += random.uniform(-10, 10)  # Change direction
-
-    # 🔹 Debugging logs
-    # print(f"🚢 Ship {mmsi} moved: {old_lat},{old_lon} ➝ {new_lat},{new_lon}")
 
 # ✅ Background Task: Move Ships
 async def update_ship_positions():
@@ -161,10 +161,15 @@ def get_ship_traffic():
 @router.get("/ship/{mmsi}")
 def get_ship_by_mmsi(mmsi: str):
     """Returns real-time position of a specific ship."""
-    if int(mmsi) not in ship_positions:
+    try:
+        mmsi = int(mmsi)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid MMSI format")
+
+    if mmsi not in ship_positions:
         raise HTTPException(status_code=404, detail="Ship not found")
 
-    ship = ship_positions[int(mmsi)]
+    ship = ship_positions[mmsi]
     return {
         "MMSI": mmsi,
         "latitude": ship["latitude"],

@@ -29,7 +29,7 @@ const Navbar = () => {
           {isOpen ? <CloseIcon style={{ fontSize: "30px" }} /> : <MenuIcon style={{ fontSize: "30px" }} />}
         </div>
         <div className="navbar-title">
-          <h1 style={{ color: "white" }}>Shippy</h1>
+          <h1 style={{ color: "white" }}>MarineNavX</h1>
         </div>
         <div className="navbar-profile" onClick={handleShowProfile}>
           <PersonIcon style={{ fontSize: "30px" }} />
@@ -61,6 +61,12 @@ const Navbar = () => {
               <li>
                 <ThunderstormIcon />
                 <span>Sea Conditions</span>
+              </li>
+            </Link>
+            <Link to="/navigation">
+              <li>
+                <MapIcon />
+                <span>Navigation</span>
               </li>
             </Link>
           </ul>
