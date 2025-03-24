@@ -4,10 +4,10 @@ import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import "../Styles/ShipMap.css";
 import Navbar from "./Navbar";
-
+import SP from "../Img/ship.png"
 
 const shipIcon = new L.Icon({
-  iconUrl: "https://cdn-icons-png.flaticon.com/512/252/252025.png",
+  iconUrl: SP,
   iconSize: [40, 40],
   iconAnchor: [20, 20],
   popupAnchor: [0, -20],

@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import FastAPI, APIRouter, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
 import random
 import asyncio
@@ -6,6 +7,18 @@ import os
 import math
 import json
 import numpy as np
+
+# ✅ Create FastAPI App
+app = FastAPI()
+
+# ✅ Add CORS Middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins (change this for security)
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all HTTP methods
+    allow_headers=["*"],  # Allow all headers
+)
 
 router = APIRouter()
 
@@ -17,18 +30,17 @@ if not os.path.exists(csv_file):
 
 ais_data = pd.read_csv(csv_file)
 
-# ✅ Standardize Column Names
 column_mapping = {
-    "ID": "MMSI",
-    "Latitude": "lat",
-    "Longitude": "lon",
-    "Speed": "sog",
-    "Course": "cog",
-    "ShipStatus": "status"
+    "MMSI": "MMSI",
+    "MeanSOG": "sog",
+    "DepLat": "lat",
+    "DepLon": "lon",
 }
-ais_data.rename(columns={k: v for k, v in column_mapping.items() if k in ais_data.columns}, inplace=True)
+ais_data.rename(columns=column_mapping, inplace=True)
 
-# ✅ Ensure Required Columns Exist
+ais_data["cog"] = np.random.uniform(0, 360, len(ais_data))
+ais_data["status"] = "Unknown"
+
 required_columns = {"MMSI", "lat", "lon", "sog", "cog", "status"}
 missing_columns = required_columns - set(ais_data.columns)
 
@@ -53,6 +65,7 @@ for col in ["sog", "cog", "lat", "lon"]:
 num_ships = min(10, len(ais_data["MMSI"].unique()))
 selected_ships = ais_data["MMSI"].drop_duplicates().sample(n=num_ships, random_state=42).tolist()
 
+print(selected_ships)
 # ✅ Store 10 ship positions globally
 ship_positions = {}
 
@@ -88,7 +101,6 @@ for _, row in ais_data[ais_data["MMSI"].isin(selected_ships)].iterrows():
         "cog": row["cog"],
         "status": row["status"]
     }
-
 # ✅ Function to Move Ships
 def move_ship(mmsi):
     """Moves a ship based on its SOG (speed) and COG (direction)."""
@@ -118,7 +130,7 @@ def move_ship(mmsi):
         ship_positions[mmsi]["cog"] += random.uniform(-10, 10)  # Change direction
 
     # 🔹 Debugging logs
-    print(f"🚢 Ship {mmsi} moved: {old_lat},{old_lon} ➝ {new_lat},{new_lon}")
+    # print(f"🚢 Ship {mmsi} moved: {old_lat},{old_lon} ➝ {new_lat},{new_lon}")
 
 # ✅ Background Task: Move Ships
 async def update_ship_positions():
@@ -161,3 +173,11 @@ def get_ship_by_mmsi(mmsi: str):
         "cog": ship["cog"],
         "status": ship["status"]
     }
+
+# ✅ Include Router in the App
+app.include_router(router)
+
+# ✅ Start Background Task
+@app.on_event("startup")
+async def start_moving_ships():
+    asyncio.create_task(update_ship_positions())
