@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
-import "./Shipmap.css"; // Import CSS for styling
+import "../Styles/ShipMap.css"
 
 // 🚢 Custom ship icon
 const shipIcon = new L.Icon({
