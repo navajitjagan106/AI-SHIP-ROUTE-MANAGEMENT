@@ -1,0 +1,73 @@
+.navbar-header {
+    width: 98vw;
+    height: 8vh;
+    background-color: #003366;
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1001;
+    justify-content: space-between;
+  }
+  
+  .menu-toggle {
+    color: white;
+    cursor: pointer;
+  }
+  
+  .navbar-profile {
+    color: white;
+    cursor: pointer;
+  }
+  
+  /* Sidebar Styling */
+  .navbar-main {
+    z-index: 1000;
+    width: 20vw;
+    height: 100vh;
+    background-color: #333333;
+    position: fixed;
+    top: 0;
+    left: -20vw;
+    transition: left 0.3s ease-in-out;
+  }
+  
+  .navbar-main.open {
+    left: 0;
+  }
+  
+  .navbar-main ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    margin-top: 10vh;
+  }
+  
+  .navbar-main li {
+    width: 16.73vw;
+    font-size: larger;
+    display: flex;
+    align-items: center;
+    padding: 20px 0px 20px 50px;
+    color: white;
+    cursor: pointer;
+    transition: background 0.3s ease-in-out;
+  }
+  
+  .navbar-main li:hover {
+    background-color: #007BFF;
+  }
+  .navbar-main ul li svg {
+    padding-right: 20px;
+  }
+  .navbar-main ul li span{
+    padding-top: 5px ;
+  }
+  .navbar-main a {
+    text-decoration: none;
+    color: white;
+    display: block;
+  }
+  

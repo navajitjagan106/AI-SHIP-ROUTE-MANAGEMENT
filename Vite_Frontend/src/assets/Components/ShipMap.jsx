@@ -2,9 +2,10 @@ import React, { useState, useEffect } from "react";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
-import "../Styles/ShipMap.css"
+import "../Styles/ShipMap.css";
+import Navbar from "./Navbar";
 
-// 🚢 Custom ship icon
+
 const shipIcon = new L.Icon({
   iconUrl: "https://cdn-icons-png.flaticon.com/512/252/252025.png",
   iconSize: [40, 40],
@@ -12,15 +13,13 @@ const shipIcon = new L.Icon({
   popupAnchor: [0, -20],
 });
 
-// API Base URL
 const API_BASE_URL = "http://127.0.0.1:8000";
 
 const ShipMap = () => {
-  const [ships, setShips] = useState([]); // Store ship data
-  const [selectedShip, setSelectedShip] = useState(null); // Selected ship details
-  const [darkMode, setDarkMode] = useState(false); // Dark mode toggle
+  const [ships, setShips] = useState([]); 
+  const [selectedShip, setSelectedShip] = useState(null); 
 
-  // ✅ Fetch ship data from backend API
+
   useEffect(() => {
     const fetchShips = async () => {
       try {
@@ -28,7 +27,7 @@ const ShipMap = () => {
         if (!response.ok) {
           throw new Error(`HTTP error! Status: ${response.status}`);
         }
-        
+
         const data = await response.json();
         console.log("Fetched Ships:", data);
 
@@ -39,7 +38,7 @@ const ShipMap = () => {
         }
       } catch (error) {
         console.error("🚨 Error fetching ship data:", error);
-        alert("🚨 Error fetching ship data! Backend might not be running.");
+        // alert("🚨 Error fetching ship data! Backend might not be running.");
       }
     };
 
@@ -50,35 +49,21 @@ const ShipMap = () => {
   }, []);
 
   return (
-    <div className={`map-container ${darkMode ? "dark-mode" : ""}`}>
-      <h1>Live Ship Tracking</h1>
-
-      {/* Dark Mode Toggle */}
-      <label className="switch">
-        <input type="checkbox" onChange={() => setDarkMode(!darkMode)} />
-        <span className="slider"></span> Dark Mode
-      </label>
-
-      {/* Ship List */}
-      <div className="ship-list">
-        <h2>Ships List</h2>
-        <ul>
-          {ships.map((ship) => (
-            <li key={ship.mmsi} onClick={() => setSelectedShip(ship)}>
-              {ship.name || "Unknown Ship"} (MMSI: {ship.mmsi})
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      {/* Map Component */}
-      <MapContainer center={[20.0, 70.0]} zoom={5} className="map">
+    <div>
+      <Navbar />
+      <div className="map-container">
+      <MapContainer 
+        center={[20.0, 70.0]} 
+        zoom={5} 
+        className="map" 
+        worldCopyJump={true}
+        minZoom={3} 
+        maxBounds={[[-85, -180], [85, 180]]}
+        maxBoundsViscosity={1.0} 
+      >
         <TileLayer
-          url={
-            darkMode
-              ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-              : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          }
+          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+          noWrap={true}
         />
 
         {ships.map((ship) => {
@@ -110,6 +95,7 @@ const ShipMap = () => {
           return null;
         })}
       </MapContainer>
+    </div>
     </div>
   );
 };
