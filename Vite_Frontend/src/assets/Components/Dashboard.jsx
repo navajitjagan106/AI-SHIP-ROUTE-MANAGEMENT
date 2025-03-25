@@ -19,7 +19,7 @@ const Dashboard = () => {
         
         {/* Map Panel */}
         <div className="map-panel">
-          <h2>Interactive Map</h2>
+          <h2 style={{color:"#004080"}}>Interactive Map</h2>
           <MapContainer center={[12.3456, -45.6789]} zoom={5} zoomControl={false} className="map-content">
             <TileLayer
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -33,7 +33,7 @@ const Dashboard = () => {
 
         {/* Notifications Panel */}
         <div className="notifications-panel">
-          <h2>Live Notifications</h2>
+          <h2 style={{color:"#004080"}}>Live Notifications</h2>
           <ul>
             <li>🚀 System initialized successfully</li>
             <li>📍 New location update received</li>

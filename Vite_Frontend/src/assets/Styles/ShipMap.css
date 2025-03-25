@@ -1,7 +1,10 @@
+.map-body{
+  width: 80vw;
+}
 .map-container {
   position: relative;
   left: 10vw;
-  top:16vh;
+  top:14vh;
   z-index: 5;
   width: 80vw; 
   height: 60vh; 

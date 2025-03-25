@@ -5,6 +5,7 @@ import {BrowserRouter,Routes,Route} from "react-router-dom";
 import Dashboard from './assets/Components/Dashboard';
 import Weather from './assets/Components/Weather';
 import Navigation from './assets/Components/Navigation';
+import "./App.css"
 function App() {
   return (
     <BrowserRouter>

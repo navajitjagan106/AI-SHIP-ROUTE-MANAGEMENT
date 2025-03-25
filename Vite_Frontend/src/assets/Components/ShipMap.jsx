@@ -54,7 +54,7 @@ const ShipMap = () => {
     <div className="map-body">
       <Navbar />
       <div className="map-title">
-        <h1>NeoECDIS</h1>
+        <h1 style={{color:"#004080"}}>NeoECDIS</h1>
       </div>
 
       {/* ✅ Show error message if API fails */}

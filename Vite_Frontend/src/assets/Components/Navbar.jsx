@@ -63,12 +63,6 @@ const Navbar = () => {
                 <span>Sea Conditions</span>
               </li>
             </Link>
-            <Link to="/navigation">
-              <li>
-                <MapIcon />
-                <span>Navigation</span>
-              </li>
-            </Link>
           </ul>
         </nav>
       </main>

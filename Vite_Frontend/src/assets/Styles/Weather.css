@@ -1,5 +1,6 @@
 .Weather-map{
     position: relative;
-    top: 20vh;
+    top: 10vh;
+    width: 70vw;
     left:10vw;
 }

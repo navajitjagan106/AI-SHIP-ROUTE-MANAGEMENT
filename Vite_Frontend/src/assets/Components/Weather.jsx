@@ -40,6 +40,7 @@ const WeatherMap = () => {
     <div>
       <Navbar />
       <div className="Weather-map">
+        <h1 style={{color:"#004080"}}>Weather Status</h1>
         <MapContainer center={[20, 80]} zoom={3} style={{ height: "70vh", width: "80vw" }} worldCopyJump={true}
           minZoom={3}
           maxBounds={[[-85, -180], [85, 180]]}

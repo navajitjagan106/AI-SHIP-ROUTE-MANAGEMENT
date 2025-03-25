@@ -22,7 +22,7 @@ app.add_middleware(
 router = APIRouter()
 
 # ✅ Load AIS Data from `trip9.csv`
-csv_file = "book1.csv"
+csv_file = "final_ship_routes.csv"
 
 if not os.path.exists(csv_file):
     raise FileNotFoundError(f"🚨 Error: CSV file '{csv_file}' not found!")
